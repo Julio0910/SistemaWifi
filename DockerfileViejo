@@ -1,0 +1,36 @@
+# Usamos como base la imagen oficial de PHP 8.2 con FPM.
+FROM php:8.2-fpm
+
+# Instalamos dependencias del sistema, incluyendo cron
+RUN apt-get update && apt-get install -y \
+    git \
+    curl \
+    zip \
+    unzip \
+    libpng-dev \
+    libjpeg-dev \
+    libfreetype6-dev \
+    cron \
+    && docker-php-ext-configure gd --with-freetype --with-jpeg \
+    && docker-php-ext-install gd pdo pdo_mysql bcmath
+
+# Instalamos Composer
+RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
+
+# Establecemos el directorio de trabajo y copiamos el código del backend
+WORKDIR /var/www/html
+COPY ./backend .
+
+# Copiamos el archivo que define nuestra tarea de cron y le damos permisos
+COPY laravel.cron /etc/cron.d/laravel-cron
+RUN chmod 0644 /etc/cron.d/laravel-cron
+RUN crontab /etc/cron.d/laravel-cron
+
+# Creamos el archivo de log para que cron pueda escribir en él
+RUN touch /var/log/cron.log
+
+# Damos permisos a la carpeta de la aplicación
+RUN chown -R www-data:www-data /var/www/html
+
+# El comando final que inicia el servicio de cron Y el servidor PHP
+CMD cron && php-fpm
